@@ -9,41 +9,41 @@
 # Optional: Add any additional methods as you want inside
 
 class Book:
-    def __init__(self):
-        self.libraray = []
-
-    def add_books(self,book_name, writer, edition, price):
+    def __init__(self,book_name,authour,edition,price):
         self.book_name = book_name
-        self.writer = writer
+        self.authour = authour
         self.edition = edition  
         self.price = price  
-        # if not self.libraray:
-        self.libraray.append({
-            'book_name':book_name, 
-            'writer':writer,
-            'edition':edition, 
-            'price':price
-            })
+
+class Library:
+    def __init__(self):
+        self.books = []
+
+    def add_books(self,book):
+        self.books.append(book)
 
     def display_books(self):
+        if not self.books:
+            print("No book found in library")
+            return
         print("\n--- Book List ---")
-        for book in self.libraray:
-            print(f"{book['book_name']} by {book['writer']} - {book['edition']} | ₹{book['price']}")  
+        for book in self.books:
+            print(f"{book.book_name} by {book.authour} - {book.edition} | ₹{book.price}")  
+            if isinstance(book, EBook):
+                print(f"Download link: {book.download_link}")
+        print("\n")  
 
-        print("\n")
 class EBook(Book):
-    def add_books(self,book_name, write, edition,price):
-        super().add_books(book_name, write, edition,price)
-    def display_books(self):
-        super().display_books()
-        print("coming from inherite data")
+    def __init__(self,book_name,author,edition,price,download_link):
+        super().__init__(book_name,author,edition,price)
+        self.download_link = download_link
 
 
+Lib = Library()
 
-list = Book()
-# inheritLis = EBook()
-list.add_books('JavaScript','Brendan Eich', '2nd Edition', 500)
-list.add_books('Python','Guido van Rossum', '3rd Edition', 300)
-list.display_books()
-# inheritLis.add_books("eBook","amendon", '1st edition', 100)
-# inheritLis.display_books()
+Lib.add_books(Book('JavaScript','Brendan Eich', '2nd Edition', 500))
+Lib.add_books(Book('Python','Guido van Rossum', '3rd Edition', 300))
+Lib.add_books(Book('React','Jordan Walke', '1st Edition', 1300))
+Lib.display_books()
+Lib.add_books(EBook('eBook','amendon', '1st edition', 100,'https://www.w3.org/WAI/ER/tests/xhtml/testfiles/resources/pdf/dummy.pdf'))
+Lib.display_books()
