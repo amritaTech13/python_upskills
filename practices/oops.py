@@ -8,3 +8,5 @@ class Person:
 
 obj1 = Person("Amrita")    
 obj1.printName()
+
+
