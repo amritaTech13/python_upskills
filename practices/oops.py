@@ -5,7 +5,6 @@ class Person:
         self.name = name
     def printName(self):
         print(f"Hi my name is {self.name} and I'm a react developer!")    
-
 obj1 = Person("Amrita")    
 obj1.printName()
 
