@@ -84,7 +84,7 @@ def borrow_book(book_name: str, token: str, db: Session = Depends(get_db)):
         raise HTTPException(status_code=400, detail='Book is not available')
     book.is_available = False
     db.commit()
-    return {'message': f'{user_name} borrowed {book_name}'}
+    return {'message': f'{user_name} borrowed {book_name} book'}
 
 @app.post('/books/{book_name}/return', tags=['Books'])
 def return_book(book_name: str, token: str, db: Session = Depends(get_db)):
@@ -99,14 +99,15 @@ def return_book(book_name: str, token: str, db: Session = Depends(get_db)):
     return {'message': f'{user_name} returned {book_name}'}
 
 @app.delete('/delete/{book_name}', tags=['Books'])
-def delete_book(book_name: str, db: Session = Depends(get_db)):
+def delete_book(book_name: str, token: str, db: Session = Depends(get_db)):
+    user_name = get_user_name(token, db)
     found_book = db.query(BookDB).filter(BookDB.book_name == book_name).first() 
     if not found_book:
         raise HTTPException(status_code=404, detail=f'This {book_name} is found in library')
     else:
         db.delete(found_book)
         db.commit()
-        return {'message': f'{book_name} has been deleted successfully'}
+        return {'message': f'user user_name deleted {book_name} book successfully'}
            
 # Create database tables
 create_tables()
