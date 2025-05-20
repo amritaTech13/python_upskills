@@ -1,44 +1,26 @@
-from fastapi import FastAPI , Depends, HTTPException
-from library import Library, Book
-from model import BookRequest, BookResponse,EBook, BookReturn
-from pydantic import BaseModel
-from typing import Optional
+from fastapi import FastAPI, Depends, HTTPException
+from sqlalchemy.orm import Session
+from db import engine, sessionLocal
+from model import UserDB, BookDB, User, Book, UserCreate, BookCreate, create_tables
+from typing import Optional, List
 import jwt as PyJWT
 from datetime import datetime, timedelta
 
 app = FastAPI()
-lib = Library()
 
-#JWT configration
+# JWT configuration
 SECURITY_KEY = 'mysecretkey'
 ALOGRITHM = 'HS256'
 
-user_DB = {
-    'Admin':{
-        'user_name': 'Admin',
-        'password': 'Admin123'
-    }    
-}
+# Dependency to get DB session
+def get_db():
+    db = sessionLocal()
+    try:
+        yield db
+    finally:
+        db.close()
 
-book_DB = [
-            {'book_name': 'JavaScript','author': 'Brendan','edition': '2nd Edition','price': 500, 'is_available': True },
-            {'book_name': 'Python','author': 'Guido van Rossum','edition': '3rd Edition','price': 200, 'is_available': True },
-            {'book_name': 'React','author': 'Jordan Walke','edition': '1st Edition','price': 800, 'is_available': True }
-        ]
-
-class User(BaseModel):
-    user_name: str
-    password: str
-
-class Book(BaseModel):
-    book_name: str
-    author: str
-    edition: str
-    price: float
-    is_available: bool
-
-
-def create_jwt_token(data:dict, expiry: Optional[timedelta] = None ):
+def create_jwt_token(data: dict, expiry: Optional[timedelta] = None):
     encode_data = data.copy()
     expire = datetime.utcnow() + (expiry or timedelta(hours=1))
     encode_data.update({'exp': expire})
@@ -52,50 +34,79 @@ def decode_jwt_token(token: str):
     except PyJWT.PyJWTError:
         return None    
 
-
-def get_userName(token):
+def get_user_name(token: str, db: Session):
     user_data = decode_jwt_token(token)
     if not user_data:
-        raise HTTPException(status_code=401, detail='Invalid or Expired time!')
+        raise HTTPException(status_code=401, detail='Invalid or Expired token!')
+    user = db.query(UserDB).filter(UserDB.user_name == user_data['sub']).first()
+    if not user:
+        raise HTTPException(status_code=401, detail='User not found!')
     return user_data['sub']
 
 @app.post('/signup', tags=['Signup'])
-def signup(users: User):
-        if users.user_name in user_DB :
-            raise HTTPException(status_code=401, detail='Username already exist')
-        user_DB['user_name'] = {'user_name':users.user_name, 'password': users.password}
-        return {'message': f'User: {users.user_name} signed up successfully'}
+def signup(user: UserCreate, db: Session = Depends(get_db)):
+    db_user = db.query(UserDB).filter(UserDB.user_name == user.user_name).first()
+    if db_user:
+        raise HTTPException(status_code=400, detail='Username already exists')
+    new_user = UserDB(user_name=user.user_name, password=user.password)
+    db.add(new_user)
+    db.commit()
+    db.refresh(new_user)
+    return {'message': f'User: {user.user_name} signed up successfully'}
 
 @app.post('/login', tags=['Login'])
-def login(users: User):
-        user_get = user_DB.get(users.user_name)
-        if not user_get or user_get['password'] != users.password:
-            raise HTTPException(status_code=401, detail='Invalid credentials')
-        token = create_jwt_token(data={'sub':users.user_name})
-        return {'access_token':token, 'token_type':'bearer'}
+def login(user: UserCreate, db: Session = Depends(get_db)):
+    db_user = db.query(UserDB).filter(UserDB.user_name == user.user_name).first()
+    if not db_user or db_user.password != user.password:
+        raise HTTPException(status_code=401, detail='Invalid credentials')
+    token = create_jwt_token(data={'sub': user.user_name})
+    return {'access_token': token, 'token_type': 'bearer'}
 
-@app.post('/borrow', tags=['Borrow Books'])
-def borrow_books(book_name:str, token:str):
-     get_user = get_userName(token)
-     for book in book_DB:
-          if book['book_name'] == book_name: 
-            if book['is_available']:
-               book['is_available'] = False
-               return {'message': f'{get_user} borrowed {book_name} book'}
-          else:
-               return{'message': f'{book_name} is not available'}     
-     raise HTTPException(status_code=401, detail=f'{book_name} not found')  
+@app.post('/books', tags=['Books'], response_model=Book)
+def add_book(book: BookCreate, db: Session = Depends(get_db)):
+    db_book = BookDB(**book.dict())
+    db.add(db_book)
+    db.commit()
+    db.refresh(db_book)
+    return db_book
 
-@app.post('/return', tags=['Return Books'])
-def return_books(book_name:str, token):
-     get_userName = get_userName(token)
-     for book in book_DB:
-          if book['book_name'] == book_name and not book['is_available']:
-                  book['is_available'] = True
-                  return {'message':f'{get_userName} return {book_name} book'}
-          
-@app.get('/getBook', tags=['Show Books'])
-def get_books():
-    return book_DB
+@app.get('/books', tags=['Books'], response_model=List[Book])
+def list_books(db: Session = Depends(get_db)):
+    return db.query(BookDB).all()
 
+@app.put('/books/{book_name}/borrow', tags=['Books'])
+def borrow_book(book_name: str, token: str, db: Session = Depends(get_db)):
+    user_name = get_user_name(token, db)
+    book = db.query(BookDB).filter(BookDB.book_name == book_name).first()
+    if not book:
+        raise HTTPException(status_code=404, detail='Book not found')
+    if not book.is_available:
+        raise HTTPException(status_code=400, detail='Book is not available')
+    book.is_available = False
+    db.commit()
+    return {'message': f'{user_name} borrowed {book_name}'}
 
+@app.post('/books/{book_name}/return', tags=['Books'])
+def return_book(book_name: str, token: str, db: Session = Depends(get_db)):
+    user_name = get_user_name(token, db)
+    book = db.query(BookDB).filter(BookDB.book_name == book_name).first()
+    if not book:
+        raise HTTPException(status_code=404, detail='Book not found')
+    if book.is_available:
+        raise HTTPException(status_code=400, detail='Book is already returned')
+    book.is_available = True
+    db.commit()
+    return {'message': f'{user_name} returned {book_name}'}
+
+@app.delete('/delete/{book_name}', tags=['Books'])
+def delete_book(book_name: str, db: Session = Depends(get_db)):
+    found_book = db.query(BookDB).filter(BookDB.book_name == book_name).first() 
+    if not found_book:
+        raise HTTPException(status_code=404, detail=f'This {book_name} is found in library')
+    else:
+        db.delete(found_book)
+        db.commit()
+        return {'message': f'{book_name} has been deleted successfully'}
+           
+# Create database tables
+create_tables()
