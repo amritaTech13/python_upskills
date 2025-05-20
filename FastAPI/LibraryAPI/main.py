@@ -107,7 +107,7 @@ def delete_book(book_name: str, token: str, db: Session = Depends(get_db)):
     else:
         db.delete(found_book)
         db.commit()
-        return {'message': f'user user_name deleted {book_name} book successfully'}
+        return {'message': f'user {user_name} deleted {book_name} book successfully'}
            
 # Create database tables
 create_tables()
