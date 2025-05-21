@@ -12,6 +12,7 @@ class UserDB(Base):
     id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
     user_name: Mapped[str] = mapped_column(String(50), nullable=False)
     password: Mapped[str] = mapped_column(String(20), nullable=False)
+    email: Mapped[str] = mapped_column(String, nullable=False, default="admin@gmail.com")
 
 class BookDB(Base):
     __tablename__ = 'books'
@@ -26,6 +27,7 @@ class BookDB(Base):
 class UserBase(BaseModel):
     user_name: str
     password: str
+    email: str
 
 class User(UserBase):
     id: int

@@ -1,4 +1,5 @@
-from fastapi import FastAPI, Depends, HTTPException
+from fastapi import FastAPI, Depends, HTTPException, Security
+from fastapi.security import OAuth2PasswordBearer
 from sqlalchemy.orm import Session
 from db import engine, sessionLocal
 from model import UserDB, BookDB, User, Book, UserCreate, BookCreate, create_tables
@@ -11,6 +12,8 @@ app = FastAPI()
 # JWT configuration
 SECURITY_KEY = 'mysecretkey'
 ALOGRITHM = 'HS256'
+
+oauth_scheme = OAuth2PasswordBearer(tokenUrl='login')
 
 # Dependency to get DB session
 def get_db():
@@ -34,7 +37,7 @@ def decode_jwt_token(token: str):
     except PyJWT.PyJWTError:
         return None    
 
-def get_user_name(token: str, db: Session):
+def get_user_name(token: str = Depends(oauth_scheme), db: Session = Depends(get_db)):
     user_data = decode_jwt_token(token)
     if not user_data:
         raise HTTPException(status_code=401, detail='Invalid or Expired token!')
@@ -48,7 +51,7 @@ def signup(user: UserCreate, db: Session = Depends(get_db)):
     db_user = db.query(UserDB).filter(UserDB.user_name == user.user_name).first()
     if db_user:
         raise HTTPException(status_code=400, detail='Username already exists')
-    new_user = UserDB(user_name=user.user_name, password=user.password)
+    new_user = UserDB(user_name=user.user_name, password=user.password, email= user.email)
     db.add(new_user)
     db.commit()
     db.refresh(new_user)
@@ -96,7 +99,7 @@ def return_book(book_name: str, token: str, db: Session = Depends(get_db)):
         raise HTTPException(status_code=400, detail='Book is already returned')
     book.is_available = True
     db.commit()
-    return {'message': f'{user_name} returned {book_name}'}
+    return {'message': f'{user_name} returned the {book_name} book'}
 
 @app.delete('/delete/{book_name}', tags=['Books'])
 def delete_book(book_name: str, token: str, db: Session = Depends(get_db)):
