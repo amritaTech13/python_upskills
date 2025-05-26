@@ -4,14 +4,14 @@ from sqlalchemy.orm import Session
 from db import engine, sessionLocal
 from model import UserDB, BookDB, User, Book, UserCreate, BookCreate, create_tables
 from typing import Optional, List
-import jwt as PyJWT
+import jwt as PyJWT  # Import as PyJWT to be explicit
 from datetime import datetime, timedelta
 
 app = FastAPI()
 
 # JWT configuration
 SECURITY_KEY = 'mysecretkey'
-ALOGRITHM = 'HS256'
+ALGORITHM = 'HS256'
 
 oauth_scheme = OAuth2PasswordBearer(tokenUrl='login')
 
@@ -27,14 +27,13 @@ def create_jwt_token(data: dict, expiry: Optional[timedelta] = None):
     encode_data = data.copy()
     expire = datetime.utcnow() + (expiry or timedelta(hours=1))
     encode_data.update({'exp': expire})
-    encrypted_data = PyJWT.encode(encode_data, SECURITY_KEY, algorithm=ALOGRITHM)
-    return encrypted_data
+    return PyJWT.encode(encode_data, SECURITY_KEY, algorithm=ALGORITHM)
 
 def decode_jwt_token(token: str):
     try:
-        decoded_data = PyJWT.decode(token, SECURITY_KEY, algorithms=[ALOGRITHM])
+        decoded_data = PyJWT.decode(token, SECURITY_KEY, algorithms=[ALGORITHM])
         return decoded_data if decoded_data['exp'] >= datetime.utcnow().timestamp() else None
-    except PyJWT.PyJWTError:
+    except PyJWT.InvalidTokenError:  # Changed to more specific error
         return None    
 
 def get_user_name(token: str = Depends(oauth_scheme), db: Session = Depends(get_db)):
